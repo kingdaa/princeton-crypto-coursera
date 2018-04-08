@@ -1,7 +1,12 @@
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
-public class TxHandler {
+public class MaxFeeTxHandler {
 
     UTXOPool utxoPool;
 
@@ -10,7 +15,7 @@ public class TxHandler {
      * {@code utxoPool}. This should make a copy of utxoPool by using the UTXOPool(UTXOPool uPool)
      * constructor.
      */
-    public TxHandler(UTXOPool utxoPool) {
+    public MaxFeeTxHandler(UTXOPool utxoPool) {
         // IMPLEMENT THIS
         this.utxoPool = new UTXOPool(utxoPool);
     }
@@ -62,6 +67,21 @@ public class TxHandler {
         return sumOfUTXOOutputs >= sumOfTxOutputs;
     }
 
+    private double calculateTxFee(Transaction tx) {
+
+        double inputSum = tx.getInputs().stream()
+                .map(input -> new UTXO(input.prevTxHash, input.outputIndex))
+                .filter(utxo -> utxoPool.contains(utxo) && isValidTx(tx))
+                .mapToDouble(utxo -> utxoPool.getTxOutput(utxo).value)
+                .sum();
+
+        double outputSum = tx.getOutputs().stream()
+                .mapToDouble(output -> output.value)
+                .sum();
+
+        return inputSum - outputSum;
+    }
+
     /**
      * Handles each epoch by receiving an unordered array of proposed transactions, checking
      * each
@@ -70,7 +90,9 @@ public class TxHandler {
      * updating the current UTXO pool as appropriate.
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
+        Arrays.sort(possibleTxs, Comparator.comparingDouble(this::calculateTxFee).reversed());
         Set<Transaction> validTxSet = new HashSet<>();
+
         for (Transaction tx : possibleTxs) {
             if (isValidTx(tx)) {
                 applyTx(tx);
